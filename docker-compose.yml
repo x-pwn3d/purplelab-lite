@@ -1,0 +1,60 @@
+services:
+  juice:
+    image: bkimminich/juice-shop:latest
+    container_name: juice
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    restart: unless-stopped
+
+  logsrv:
+    image: nginx:alpine
+    container_name: logsrv
+    volumes:
+      - ./logs:/var/log/nginx
+      - ./webroot/index.html:/usr/share/nginx/html/index.html:ro    
+      - uploads:/usr/share/nginx/html/uploads                      
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    command: >
+      sh -c "mkdir -p /usr/share/nginx/html/uploads &&
+             chown -R nginx:nginx /usr/share/nginx/html/uploads &&
+             nginx -g 'daemon off;'"
+    restart: unless-stopped
+
+
+  attacker:
+    image: curlimages/curl:8.2.1
+    container_name: attacker
+    volumes:
+      - ./attacks:/attacks
+    working_dir: /attacks
+    command: ["sh", "/attacks/run_attacks.sh"]
+    depends_on:
+      - juice
+      - logsrv
+
+  harness:
+    build:
+      context: .
+      dockerfile: Dockerfile.harness
+    image: purplelab-harness:latest
+    container_name: harness
+    volumes:
+      - ./:/app
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+      - ./webroot:/app/webroot
+      - uploads:/data/uploads
+    depends_on:
+      - attacker
+      - logsrv
+      - juice
+    tty: true
+  
+volumes:
+  uploads:
+
+

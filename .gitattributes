@@ -1,0 +1,9 @@
+# enforce LF in repository for scripts and source files
+*.sh     text eol=lf
+*.py     text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.yara   text eol=lf
+*.md     text eol=lf
+*.html   text eol=lf
+*        text=auto

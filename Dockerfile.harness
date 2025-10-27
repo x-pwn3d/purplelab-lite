@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+# Install build deps for yara-python and wget/curl support
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    libpcre2-dev \
+    pkg-config \
+    python3-dev \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install yara-python (compiled) so harness can use it
+RUN pip install --no-cache-dir yara-python
+
+# Copy project (but runtime uses mounted volume)
+COPY . /app
+
+RUN chmod +x /app/harness.py || true
+
+CMD ["python", "/app/harness.py"]
