@@ -38,21 +38,62 @@ def start_compose(): docker_available() and run("docker compose up -d --build")
 def stop_compose(): docker_available() and run("docker compose down --remove-orphans")
 
 def exec_attacker():
-    if docker_available(): return run("docker exec attacker sh /attacks/run_attacks.sh || true")
-    local_script = os.path.join(ROOT, "attacks/run_attacks.sh")
-    if os.path.exists(local_script):
-        os.chmod(local_script, 0o755)
-        print("[*] Running attack script locally.")
-        return run(f"sh {local_script} || true")
-    print("[!] No attack script found."); return None
+    """
+    Execute attacker scenario:
+    - if docker available -> try `docker exec attacker ...` (no file redirection, collect_logs handles docker logs)
+    - else -> run the local attack script and redirect stdout/stderr to logs/attacker_stdout.log
+    """
+    local_script = os.path.join(ROOT, "attacks", "run_attacks.sh")
+
+    if docker_available():
+        # try docker exec first; still capture its output to console (collect_logs will fetch docker logs separately)
+        print("[*] Executing attacker inside container (docker exec)...")
+        return run("docker exec attacker sh /attacks/run_attacks.sh || true")
+    else:
+        if os.path.exists(local_script):
+            print("[*] Docker not available — running attack script locally and saving output to logs/attacker_stdout.log")
+            try:
+                os.chmod(local_script, 0o755)
+            except Exception:
+                pass
+            # ensure logs dir exists
+            os.makedirs(LOGS_DIR, exist_ok=True)
+            log_path = os.path.join(LOGS_DIR, "attacker_stdout.log")
+            # run the script and capture stdout/stderr to file (append with timestamp)
+            with open(log_path, "a", encoding="utf-8") as fh:
+                fh.write(f"\n\n=== Run at {datetime.datetime.now(datetime.timezone.utc).isoformat()} UTC ===\n")
+                # use subprocess.Popen to stream output into file
+                proc = subprocess.Popen(["sh", local_script], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                for line in proc.stdout:
+                    fh.write(line)
+                proc.wait()
+            return None
+        else:
+            print("[!] No attacker script found to run locally.")
+            return None
+
 
 def collect_logs():
+    """
+    Ensure logs/uploads exist; collect docker container logs for juice and attacker if present.
+    Also ensure logs/attacker_stdout.log exists (create empty if not present).
+    """
     os.makedirs(LOGS_DIR, exist_ok=True)
     os.makedirs(UPLOADS_DIR, exist_ok=True)
     print("[*] Collecting logs...")
+
+    # Always ensure an attacker log file exists so generate_report can include it even if empty
+    attacker_log_path = os.path.join(LOGS_DIR, "attacker_stdout.log")
+    if not os.path.exists(attacker_log_path):
+        open(attacker_log_path, "a", encoding="utf-8").close()
+
     if docker_available():
+        # collect docker container logs for juice and attacker if containers exist
+        # use '|| true' so command never fails the harness
         run("docker logs juice > logs/juice_stdout.log 2>&1 || true")
         run("docker logs attacker > logs/attacker_stdout.log 2>&1 || true")
+    else:
+        print("[*] Docker not present: assuming logs/* and uploads/* already contain data or local run populated logs/attacker_stdout.log.")
     return 0
 
 def run_yara():
@@ -104,7 +145,7 @@ def generate_report(yara_findings, grep_hits):
     os.makedirs(REPORTS_DIR, exist_ok=True)
     content=[]
     content.append("# 🧩 PurpleLab-lite Security Report\n\n")
-    content.append(f"🕒 **Date (UTC):** {datetime.datetime.now(datetime.UTC).isoformat()}\n\n")
+    content.append(f"🕒 **Date (UTC):** {datetime.datetime.now(datetime.timezone.utc).isoformat()}\n\n")
     content.append("## 🧾 Summary\n")
     content.append(f"- YARA matches: **{len(yara_findings)}**\n")
     content.append(f"- Keyword hits: **{len(grep_hits)}**\n\n")

