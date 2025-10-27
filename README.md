@@ -82,6 +82,20 @@ PurpleLab-lite/
 
 ---
 
+## ℹ️ Note about HTTP responses, snippets and “errors” in the report
+
+While running attack scenarios you may see HTTP response codes like **500**, **401**, etc. appear in the attacker logs and the generated report. This is expected and not an indication of a harness failure.
+
+**HTTP 500 (Internal Server Error)** - typically occurs when sending intentionally malformed SQLi payloads. Juice Shop returns 500 for such malformed input; that’s expected since we intentionally test error-handling and parsing paths.
+
+**HTTP 401 (Unauthorized)** - appears for login attempts with incorrect credentials. Again, expected for login-focused attack payloads.
+
+**Snippets in the report** - the harness captures a short response snippet (first bytes) to demonstrate what the attacker observed. These snippets help validate that payloads were processed and reveal whether error messages or stack traces were returned, useful for Purple Team analysis and detection tuning.
+
+So: **500/401 + snippets = normal**. They provide valuable context for detection development and incident analysis.
+
+---
+
 ## ⚡ Contribution
 
 Contributions are welcome!
