@@ -86,7 +86,7 @@ PurpleLab-lite/
 
 While running attack scenarios you may see HTTP response codes like **500**, **401**, etc. appear in the attacker logs and the generated report. This is expected and not an indication of a harness failure.
 
-**HTTP 500 (Internal Server Error)** - typically occurs when sending intentionally malformed SQLi payloads. Juice Shop returns 500 for such malformed input; that’s expected since we intentionally test error-handling and parsing paths.
+**HTTP 500 (Internal Server Error)** - typically occurs when sending intentionally malformed SQLi payloads. Juice Shop returns 500 for such malformed input, that’s expected since we intentionally test error-handling and parsing paths.
 
 **HTTP 401 (Unauthorized)** - appears for login attempts with incorrect credentials. Again, expected for login-focused attack payloads.
 
