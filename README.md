@@ -1,11 +1,11 @@
 # 🟣 PurpleLab-lite
 
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)](https://github.com/x-pwn3d/mini-c2)  
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)  
-[![Status](https://img.shields.io/badge/Status-Functional-brightgreen)](https://github.com/x-pwn3d/mini-c2)  
-![License](https://img.shields.io/badge/License-MIT-orange)  
-![TLS](https://img.shields.io/badge/TLS-Lab%20Certs-blue)  
-![Lab](https://img.shields.io/badge/Lab-Educational-lightgrey)  
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)](https://github.com/x-pwn3d/mini-c2)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![Status](https://img.shields.io/badge/Status-Functional-brightgreen)](https://github.com/x-pwn3d/mini-c2)
+![License](https://img.shields.io/badge/License-MIT-orange)
+![TLS](https://img.shields.io/badge/TLS-Lab%20Certs-blue)
+![Lab](https://img.shields.io/badge/Lab-Educational-lightgrey)
 
 ---
 
@@ -97,5 +97,3 @@ Please submit a **pull request** or **issue** on GitHub.
 ## 📜 License
 
 This project is licensed under the **MIT License** - see [LICENSE](./LICENSE) for details.
-
-
