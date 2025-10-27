@@ -1,6 +1,6 @@
 rule Webshell_PHP_Poc {
   meta:
-    author = "xpwned"
+    author = "x-pwned"
     description = "Detects simple PHP webshell patterns"
     date = "2025-10-27"
   strings:
