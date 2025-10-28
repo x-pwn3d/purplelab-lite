@@ -1,38 +1,27 @@
-rule SQLi
-{
-    meta:
-        author = "x-pwned"
-        description = "Detect suspicious SQLi-like patterns in logs"
-        date = "2025-10-27"
-
-    strings:
-        $s1 = "-- -"        // SQL comment style
-        $s2 = "1=1"         // tautology
-        $s3 = "OR"          // logical OR
-        $s4 = "UNION"       // UNION-based injection
-        $s5 = "SLEEP"       // time-based
-        $s6 = "DROP TABLE"  // destructive pattern
-
-    condition:
-        any of them
+rule SQLi_Generic {
+  meta:
+    author = "x-pwned"
+    description = "Generic SQLi indicators (case-insensitive)"
+    date = "2025-10-28"
+  strings:
+    $taut = /(\bOR\s+1\s*=\s*1\b|\b1\s*=\s*1\b)/i
+    $union = /UNION\s+SELECT/i
+    $time = /(SLEEP|BENCHMARK)\s*\(/i
+    $comment = /--\s/        /* standard SQL comment */
+    $drop = /DROP\s+TABLE/i
+    $sql_keywords = /(\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b)/i
+  condition:
+    any of ($taut, $union, $time, $comment, $drop) or 2 of ($sql_keywords, $taut, $union)
 }
-
-
 
 rule SQLi_HighConfidence {
   meta:
-    author      = "x-pwned"
-    description = "High-confidence SQLi indicators (tautology, UNION, time-based, comment context)"
-    date        = "2025-10-27"
+    author = "x-pwned"
+    description = "High-confidence SQLi (UNION or tautology patterns)"
+    date = "2025-10-28"
   strings:
-    $taut1 = /OR\s+1\s*=\s*1/i
-    $taut2 = /1\s*=\s*1/i
-    $union = /UNION\s+SELECT/i
-    $timebased = /(SLEEP|BENCHMARK)\s*\(/i
-    $quote_comment = /['"][^'"]{0,50}['"]\s*--/i
+    $union_sel = /UNION\s+SELECT/i
+    $taut = /OR\s+1\s*=\s*1/i
   condition:
-    filesize < 2000000 and (
-      (any of ($taut1, $taut2, $timebased) and any of ($quote_comment)) 
-      or $union
-    )
+    filesize < 2000000 and ( $union_sel or $taut )
 }

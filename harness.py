@@ -165,12 +165,7 @@ def generate_report(yara_findings, grep_hits):
     with open(REPORT,"w",encoding="utf-8") as f: f.writelines(content)
     print(f"[+] Report generated at {REPORT}")
 
-def cleanup_uploads_volume():
-    if not AUTO_CLEANUP: print("[*] AUTO_CLEANUP disabled."); return
-    if not docker_available(): print("[!] Docker not found - skipping AUTO_CLEANUP."); return
-    print("[*] AUTO_CLEANUP: clearing uploads Docker volume...")
-    run('docker run --rm -v uploads:/data alpine sh -c "rm -f /data/* || true"')
-    print("[+] AUTO_CLEANUP: uploads volume cleared.")
+
 
 if __name__=="__main__":
     print("[*] Starting PurpleLab-lite harness...")
@@ -188,5 +183,4 @@ if __name__=="__main__":
     generate_report(run_yara(), grep_indicators())
     print("[*] Stopping containers...")
     if docker_available(): stop_compose()
-    cleanup_uploads_volume()
     print("[+] Done. Check reports/report.md.")
